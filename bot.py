@@ -2,9 +2,11 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 import re
+import matplotlib.pyplot as plt
+import io
+import os
 
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
@@ -52,7 +54,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text('Hello. \n Enter the amount of money you spent..')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text('Send /start to get a welcome message. Send /help to see this message.')
+    help_text = """
+🤖 **Available Commands:**
+
+/start - Initialize your account and create default categories
+/list - Show all your transactions
+/summarize - Generate a chart showing spending by category
+/help - Show this help message
+
+💡 **How to add transactions:**
+Simply send a message with amount and currency, e.g.:
+• "100 USD groceries"
+• "25.50 EUR lunch"
+• "15 GBP coffee"
+    """
+    await update.message.reply_text(help_text)
 
 # In-memory storage for transactions
 transactions = {}
@@ -97,11 +113,16 @@ async def handle_transaction(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
     data = query.data
+    
+    # Only process category callbacks
     if not data.startswith("cat_"):
         return
+    
+    await query.answer()
+    user_id = query.from_user.id
+    
+    print(f"Processing category callback: {data}")  # Debug print
     category_id = int(data.split("_", 1)[1])
     transaction = pending_transactions.pop(user_id, None)
     if not transaction:
@@ -152,12 +173,204 @@ async def list_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         lines.append(line)
     await update.message.reply_text("Your transactions:\n" + "\n".join(lines))
 
+async def summarize_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Show time period selection buttons
+    keyboard = [
+        [InlineKeyboardButton("📅 This Month", callback_data="summarize_this_month")],
+        [InlineKeyboardButton("📅 Last 7 Days", callback_data="summarize_7_days")],
+        [InlineKeyboardButton("📅 Last 30 Days", callback_data="summarize_30_days")],
+        [InlineKeyboardButton("📅 All Transactions", callback_data="summarize_all")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        "📊 Choose a time period for your spending summary:",
+        reply_markup=reply_markup
+    )
+
+async def handle_summarize_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    data = query.data
+    
+    # Only process summarize callbacks
+    if not data.startswith("summarize_"):
+        return
+    
+    await query.answer()
+    user_id = query.from_user.id
+    
+    print(f"Processing summarize callback: {data}")  # Debug print
+    
+    period = data.replace("summarize_", "")
+    
+    # Build the SQL query based on the selected period
+    if period == "this_month":
+        sql_condition = "AND EXTRACT(MONTH FROM t.timestamp) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM t.timestamp) = EXTRACT(YEAR FROM CURRENT_DATE)"
+        period_title = "This Month"
+    elif period == "7_days":
+        sql_condition = "AND t.timestamp >= CURRENT_DATE - INTERVAL '7 days'"
+        period_title = "Last 7 Days"
+    elif period == "30_days":
+        sql_condition = "AND t.timestamp >= CURRENT_DATE - INTERVAL '30 days'"
+        period_title = "Last 30 Days"
+    elif period == "all":
+        sql_condition = ""
+        period_title = "All Time"
+    else:
+        await query.edit_message_text("Invalid time period selected.")
+        return
+    
+    # Get transaction data grouped by category for the selected period
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT c.category_name, SUM(t.amount) as total_amount, t.currency
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id = c.id
+            WHERE t.user_id = %s {sql_condition}
+            GROUP BY c.category_name, t.currency
+            ORDER BY total_amount DESC
+            """,
+            (str(user_id),)
+        )
+        category_totals = cur.fetchall()
+    
+    if not category_totals:
+        await query.edit_message_text(f"You have no transactions for {period_title.lower()}.")
+        return
+    
+    # Prepare data for the chart
+    categories = []
+    amounts = []
+    currency = category_totals[0][2] if category_totals else "USD"  # Use first currency found
+    
+    for category_name, total_amount, curr in category_totals:
+        if category_name:  # Only include categorized transactions
+            categories.append(category_name)
+            amounts.append(float(total_amount))
+    
+    if not categories:
+        await query.edit_message_text(f"You have no categorized transactions for {period_title.lower()}.")
+        return
+    
+    # Set dark theme
+    plt.style.use('dark_background')
+    
+    # Create beautiful colors with gradients
+    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', 
+              '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
+    
+    # Create the chart with enhanced styling - bigger size
+    fig, ax = plt.subplots(figsize=(16, 12))
+    
+    # Custom autopct function to show both percentage and amount
+    def make_autopct(values):
+        def my_autopct(pct):
+            total = sum(values)
+            val = int(round(pct*total/100.0))
+            return f'{pct:.1f}%\n({val:.0f})'
+        return my_autopct
+    
+    # Create pie chart with enhanced styling
+    wedges, texts, autotexts = ax.pie(
+        amounts, 
+        labels=categories, 
+        autopct=make_autopct(amounts),
+        startangle=90,
+        colors=colors[:len(amounts)],
+        explode=[0.05] * len(amounts),  # Slight separation between slices
+        textprops={'fontsize': 12, 'color': 'white', 'weight': 'bold'},
+        wedgeprops={'edgecolor': 'white', 'linewidth': 2}
+    )
+    
+    # Enhance autopct text styling
+    for autotext in autotexts:
+        autotext.set_color('white')
+        autotext.set_fontsize(11)
+        autotext.set_weight('bold')
+    
+    # Add title with enhanced styling - centered at top
+    plt.suptitle(
+        f'Spending by Category - ({currency})', 
+        fontsize=24, 
+        fontweight='bold', 
+        color='white',
+        y=0.85
+    )
+    
+    # Add total amount as subtitle at bottom
+    plt.figtext(
+        0.5, 0.06, 
+        f'Total Spent: {sum(amounts):.2f} {currency}', 
+        ha='center', 
+        fontsize=16, 
+        fontweight='bold',
+        color='#FFD700'  # Gold color for total
+    )
+    
+    # Set background to black
+    fig.patch.set_facecolor('black')
+    ax.set_facecolor('black')
+    
+    # Center the pie chart with better margins and more free space
+    ax.set_position([0.1, 0.15, 0.8, 0.65])  # [left, bottom, width, height]
+    
+    # Save the chart to a bytes buffer
+    buf = io.BytesIO()
+    plt.savefig(
+        buf, 
+        format='png', 
+        bbox_inches='tight', 
+        dpi=150,
+        facecolor='black',
+        edgecolor='none',
+        transparent=False
+    )
+    buf.seek(0)
+    plt.close()
+    
+    # Send the chart
+    await context.bot.send_photo(
+        chat_id=query.from_user.id,
+        photo=buf    )
+    
+    # Also send a text summary
+    summary_lines = [f"📊 **Spending Summary - {period_title}:**"]
+    for i, (category, amount) in enumerate(zip(categories, amounts), 1):
+        percentage = (amount / sum(amounts)) * 100
+        summary_lines.append(f"{i}. {category}: {amount:.2f} {currency} ({percentage:.1f}%)")
+    
+    summary_lines.append(f"\n💰 **Total Spent**: {sum(amounts):.2f} {currency}")
+    await context.bot.send_message(
+        chat_id=query.from_user.id,
+        text="\n".join(summary_lines)
+    )
+    
+    # Update the original message to show the selection
+    await query.edit_message_text(f"✅ Showing spending summary for: **{period_title}**")
+
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Unified callback handler that routes to appropriate functions"""
+    query = update.callback_query
+    data = query.data
+    
+    print(f"Callback received: {data}")  # Debug print
+    
+    if data.startswith("summarize_"):
+        await handle_summarize_callback(update, context)
+    elif data.startswith("cat_"):
+        await category_selected(update, context)
+    else:
+        print(f"Unknown callback data: {data}")
+        await query.answer("Unknown callback")
+
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('list', list_transactions))
+    app.add_handler(CommandHandler('summarize', summarize_transactions))
     from telegram.ext import MessageHandler, filters
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_transaction))
-    app.add_handler(CallbackQueryHandler(category_selected))
+    app.add_handler(CallbackQueryHandler(handle_callback_query))
     app.run_polling()
