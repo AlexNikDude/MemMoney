@@ -1,5 +1,5 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 import re
 import matplotlib.pyplot as plt
@@ -51,24 +51,49 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 (cat, user_id, cat, user_id)
             )
         conn.commit()
-    await update.message.reply_text('Hello. \n Enter the amount of money you spent..')
+    
+    # Show persistent keyboard menu
+    keyboard = [
+        [KeyboardButton("🤌 Summarize"), KeyboardButton("🧐 Help")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+    
+    await update.message.reply_text(
+        '👋 Hello! Welcome to your personal spending tracker.\n\n'
+        '💡 **How to add transactions:**\n'
+        'Simply send a message with amount and currency, e.g.:\n'
+        '• "100 USD groceries"\n'
+        '• "25.50 EUR lunch"\n'
+        '• "15 GBP coffee"\n\n'
+        'Use the buttons below for quick access:',
+        reply_markup=reply_markup
+    )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    help_text = """
-🤖 **Available Commands:**
+    await update.message.reply_text(HELP_TEXT)
 
-/start - Initialize your account and create default categories
-/list - Show all your transactions
-/summarize - Generate a chart showing spending by category
-/help - Show this help message
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the main menu with buttons"""
+    keyboard = [
+        [KeyboardButton("🤌 Summarize"), KeyboardButton("🧐 Help")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+    
+    await update.message.reply_text(
+        "🎛️ **Main Menu**\n\nChoose an option:",
+        reply_markup=reply_markup
+    )
 
-💡 **How to add transactions:**
+
+
+# Help text constant to avoid duplication
+HELP_TEXT = """
+🤖 **How to add transactions:**
 Simply send a message with amount and currency, e.g.:
 • "100 USD groceries"
 • "25.50 EUR lunch"
 • "15 GBP coffee"
-    """
-    await update.message.reply_text(help_text)
+"""
 
 # In-memory storage for transactions
 transactions = {}
@@ -78,6 +103,13 @@ pending_transactions = {}
 
 async def handle_transaction(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message.text.strip()
+    
+    # Handle keyboard button presses
+    if message in ["🤌 Summarize", "🧐 Help"]:
+        await handle_keyboard_button(update, context, message)
+        return
+    
+    # Handle transaction input
     match = re.match(r'^(\d+(?:\.\d{1,2})?)\s*([A-Za-z]{3})\b(.*)$', message)
     if match:
         amount, currency, message_without_amount_currency = match.groups()
@@ -110,6 +142,28 @@ async def handle_transaction(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
     else:
         await update.message.reply_text("Please send a number followed by a 3-letter currency code, e.g. '100 USD'.")
+
+async def handle_keyboard_button(update: Update, context: ContextTypes.DEFAULT_TYPE, button_text: str) -> None:
+    """Handle keyboard button presses"""
+    if button_text == "🤌 Summarize":
+        # Show time period selection buttons
+        keyboard = [
+            [InlineKeyboardButton("📅 This Month", callback_data="summarize_this_month")],
+            [InlineKeyboardButton("📅 Last 7 Days", callback_data="summarize_7_days")],
+            [InlineKeyboardButton("📅 Last 30 Days", callback_data="summarize_30_days")],
+            [InlineKeyboardButton("📅 All Transactions", callback_data="summarize_all")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "📊 Choose a time period for your spending summary:",
+            reply_markup=reply_markup
+        )
+    
+    elif button_text == "🧐 Help":
+        await update.message.reply_text(HELP_TEXT)
+    
+
 
 async def category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -329,6 +383,12 @@ async def handle_summarize_callback(update: Update, context: ContextTypes.DEFAUL
     buf.seek(0)
     plt.close()
     
+    # Delete the time selection message
+    try:
+        await query.delete_message()
+    except:
+        pass  # Ignore if message can't be deleted
+    
     # Send the chart
     await context.bot.send_photo(
         chat_id=query.from_user.id,
@@ -346,9 +406,6 @@ async def handle_summarize_callback(update: Update, context: ContextTypes.DEFAUL
         text="\n".join(summary_lines)
     )
     
-    # Update the original message to show the selection
-    await query.edit_message_text(f"✅ Showing spending summary for: **{period_title}**")
-
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Unified callback handler that routes to appropriate functions"""
     query = update.callback_query
@@ -364,12 +421,15 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         print(f"Unknown callback data: {data}")
         await query.answer("Unknown callback")
 
+
+
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('list', list_transactions))
     app.add_handler(CommandHandler('summarize', summarize_transactions))
+    app.add_handler(CommandHandler('menu', menu_command))
     from telegram.ext import MessageHandler, filters
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_transaction))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
