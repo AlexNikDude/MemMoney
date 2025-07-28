@@ -115,8 +115,8 @@ async def category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         # Save transaction to DB
         cur.execute(
             """
-            INSERT INTO transactions (user_id, amount, currency, message, category_id)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO transactions (user_id, amount, currency, message, category_id, timestamp)
+            VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             """,
             (str(user_id), transaction['amount'], transaction['currency'], transaction['message'], category_id)
         )
@@ -128,7 +128,7 @@ async def list_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT t.amount, t.currency, t.message, c.category_name
+            SELECT t.amount, t.currency, t.message, c.category_name, t.timestamp
             FROM transactions t
             LEFT JOIN categories c ON t.category_id = c.id
             WHERE t.user_id = %s
@@ -141,8 +141,10 @@ async def list_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("You have no transactions recorded.")
         return
     lines = []
-    for amount, currency, message, category_name in user_transactions:
-        line = f"{amount} {currency}"
+    for amount, currency, message, category_name, timestamp in user_transactions:
+        # Format timestamp as DD-MM-YYYY HH:MM:SS
+        formatted_timestamp = timestamp.strftime("%d-%m-%Y %H:%M:%S") if timestamp else "N/A"
+        line = f"{amount} {currency} ({formatted_timestamp})"
         if message:
             line += f" — {message}"
         if category_name:
