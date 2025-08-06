@@ -28,4 +28,25 @@ output "db_connection_string" {
   description = "The database connection string"
   value       = "postgresql://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}:${aws_db_instance.postgres.port}/${aws_db_instance.postgres.db_name}"
   sensitive   = true
+}
+
+# ECS Outputs
+output "ecs_cluster_name" {
+  description = "The name of the ECS cluster"
+  value       = aws_ecs_cluster.main.name
+}
+
+output "ecs_service_name" {
+  description = "The name of the ECS service"
+  value       = aws_ecs_service.bot.name
+}
+
+output "alb_dns_name" {
+  description = "The DNS name of the load balancer"
+  value       = aws_lb.bot.dns_name
+}
+
+output "alb_url" {
+  description = "The URL of the load balancer"
+  value       = "http://${aws_lb.bot.dns_name}"
 } 

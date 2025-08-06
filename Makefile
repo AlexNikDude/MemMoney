@@ -11,7 +11,7 @@ all: build run
 
 # Build Docker image
 build:
-	docker build -t $(IMAGE_NAME) .
+	docker build --platform linux/amd64 -t $(IMAGE_NAME) .
 
 # Run Docker container locally
 run: build
@@ -82,3 +82,18 @@ migrate:
 		migrate
 
 deploy: push terraform-init terraform-apply migrate
+
+# Show ECS service info
+ecs-info:
+	@echo "📊 ECS Service Information:"
+	@echo "Cluster: $$(cd $(TF_DIR) && terraform output -raw ecs_cluster_name)"
+	@echo "Service: $$(cd $(TF_DIR) && terraform output -raw ecs_service_name)"
+	@echo "Load Balancer: $$(cd $(TF_DIR) && terraform output -raw alb_url)"
+
+# Update ECS service (after pushing new image)
+update-ecs: push
+	@echo "🔄 Updating ECS service..."
+	@aws ecs update-service \
+		--cluster $$(cd $(TF_DIR) && terraform output -raw ecs_cluster_name) \
+		--service $$(cd $(TF_DIR) && terraform output -raw ecs_service_name) \
+		--force-new-deployment
