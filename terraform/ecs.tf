@@ -41,7 +41,7 @@ resource "aws_ecs_task_definition" "bot" {
         },
         {
           name  = "POSTGRES_HOST"
-          value = aws_db_instance.postgres.endpoint
+          value = split(":", aws_db_instance.postgres.endpoint)[0]
         },
         {
           name  = "POSTGRES_PORT"
