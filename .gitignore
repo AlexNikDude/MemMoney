@@ -7,3 +7,4 @@
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+/db-info.json

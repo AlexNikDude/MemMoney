@@ -5,7 +5,7 @@ ECR_URL=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(AWS_REPO_NAME)
 TF_DIR=terraform
 IMAGE_NAME=memmoney-bot
 
-.PHONY: all build run push terraform-init terraform-apply deploy clean
+.PHONY: all build run push terraform-init terraform-apply deploy clean migrate
 
 all: build run
 
@@ -61,4 +61,24 @@ terraform-apply:
 		-var "db_instance_class=db.t3.micro" \
 		-var "db_allocated_storage=20"
 
-deploy: push terraform-init terraform-apply
+# Get database details from Terraform
+get-db-info:
+	@echo "📊 Getting database connection details..."
+	@cd $(TF_DIR) && terraform output -json > ../db-info.json 2>/dev/null || echo "{}" > ../db-info.json
+
+# Apply database migrations
+migrate:
+	@echo "🔄 Applying database migrations..."
+	@cd $(TF_DIR) && terraform output -raw db_endpoint > /dev/null 2>&1 || { echo "❌ Error: Database not created yet. Run 'make terraform-apply' first."; exit 1; }
+	@DB_ENDPOINT=$$(cd $(TF_DIR) && terraform output -raw db_endpoint) && \
+	DB_NAME=$$(cd $(TF_DIR) && terraform output -raw db_name) && \
+	DB_USERNAME=$$(cd $(TF_DIR) && terraform output -raw db_username) && \
+	DB_PASSWORD=$$(cd $(TF_DIR) && terraform output -raw db_password) && \
+	echo "🔗 Connecting to: $$DB_ENDPOINT/$$DB_NAME" && \
+	flyway -url="jdbc:postgresql://$$DB_ENDPOINT/$$DB_NAME" \
+		-user="$$DB_USERNAME" \
+		-password="$$DB_PASSWORD" \
+		-locations="filesystem:migrations" \
+		migrate
+
+deploy: push terraform-init terraform-apply migrate
