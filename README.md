@@ -1,8 +1,8 @@
-# Telegram Spending Tracker Bot
+# MemMoney Bot
 
 ## 🏗️ Project Structure
 
-A clean, maintainable Telegram bot for tracking personal spending with beautiful charts and easy-to-use interface:
+A clean, maintainable MemMoney bot for tracking personal spending with beautiful charts and easy-to-use interface:
 
 ```
 TelegramBot/
@@ -129,4 +129,4 @@ python3 bot.py
 - **Connection Pooling**: Database connections are managed properly
 - **Cleanup**: Proper resource cleanup on shutdown
 
-The bot provides a clean, maintainable codebase with all the features you need for personal spending tracking! 🎉 
+The MemMoney bot provides a clean, maintainable codebase with all the features you need for personal spending tracking! 🎉 
