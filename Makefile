@@ -88,7 +88,6 @@ ecs-info:
 	@echo "📊 ECS Service Information:"
 	@echo "Cluster: $$(cd $(TF_DIR) && terraform output -raw ecs_cluster_name)"
 	@echo "Service: $$(cd $(TF_DIR) && terraform output -raw ecs_service_name)"
-	@echo "Load Balancer: $$(cd $(TF_DIR) && terraform output -raw alb_url)"
 
 # Update ECS service (after pushing new image)
 update-ecs: push

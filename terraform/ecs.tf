@@ -27,13 +27,6 @@ resource "aws_ecs_task_definition" "bot" {
       name  = "memmoney-bot"
       image = "${var.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.repo_name}:latest"
       
-      portMappings = [
-        {
-          containerPort = 80
-          protocol      = "tcp"
-        }
-      ]
-      
       environment = [
         {
           name  = "TELEGRAM_BOT_TOKEN"
@@ -91,66 +84,8 @@ resource "aws_ecs_service" "bot" {
     assign_public_ip = true
   }
   
-  depends_on = [aws_lb_listener.bot]
-  
-  load_balancer {
-    target_group_arn = aws_lb_target_group.bot.arn
-    container_name   = "memmoney-bot"
-    container_port   = 80
-  }
-  
   tags = {
     Name = "memmoney-bot-service"
-  }
-}
-
-# Application Load Balancer
-resource "aws_lb" "bot" {
-  name               = "memmoney-bot-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = [aws_subnet.subnet1.id, aws_subnet.subnet2.id]
-  
-  tags = {
-    Name = "memmoney-bot-alb"
-  }
-}
-
-# ALB Target Group
-resource "aws_lb_target_group" "bot" {
-  name        = "memmoney-bot-tg"
-  port        = 80
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-  
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = "/health"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
-  }
-  
-  tags = {
-    Name = "memmoney-bot-target-group"
-  }
-}
-
-# ALB Listener
-resource "aws_lb_listener" "bot" {
-  load_balancer_arn = aws_lb.bot.arn
-  port              = "80"
-  protocol          = "HTTP"
-  
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.bot.arn
   }
 }
 
