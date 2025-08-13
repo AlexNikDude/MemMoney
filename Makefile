@@ -5,7 +5,7 @@ ECR_URL=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(AWS_REPO_NAME)
 TF_DIR=terraform
 IMAGE_NAME=memmoney-bot
 
-.PHONY: all build run push terraform-init terraform-apply deploy clean migrate
+.PHONY: all build run run-local push terraform-init terraform-apply deploy clean migrate migrate-local
 
 all: build run
 
@@ -20,6 +20,21 @@ run: build
 		--network host \
 		$(IMAGE_NAME)
 
+# Run with local development environment variables
+run-local: build
+	docker run --rm -it \
+		-e POSTGRES_HOST=$(POSTGRES_HOST_LOCAL) \
+		-e POSTGRES_PORT=$(POSTGRES_PORT_LOCAL) \
+		-e POSTGRES_DB=$(POSTGRES_DB_LOCAL) \
+		-e POSTGRES_USER=$(POSTGRES_USER_LOCAL) \
+		-e POSTGRES_PASSWORD=$(POSTGRES_PASSWORD_LOCAL) \
+		-e TELEGRAM_BOT_TOKEN=$(TELEGRAM_BOT_TOKEN_DEV) \
+		-e AWS_ACCOUNT_ID=$(AWS_ACCOUNT_ID) \
+		-e AWS_REGION=$(AWS_REGION) \
+		-e AWS_REPO_NAME=$(AWS_REPO_NAME) \
+		--network host \
+		$(IMAGE_NAME)
+
 # Run in background
 run-bg: build
 	docker run -d \
@@ -28,15 +43,38 @@ run-bg: build
 		--name memmoney-bot-container \
 		$(IMAGE_NAME)
 
+# Run local development in background
+run-local-bg: build
+	docker run -d \
+		-e POSTGRES_HOST=$(POSTGRES_HOST_LOCAL) \
+		-e POSTGRES_PORT=$(POSTGRES_PORT_LOCAL) \
+		-e POSTGRES_DB=$(POSTGRES_DB_LOCAL) \
+		-e POSTGRES_USER=$(POSTGRES_USER_LOCAL) \
+		-e POSTGRES_PASSWORD=$(POSTGRES_PASSWORD_LOCAL) \
+		-e TELEGRAM_BOT_TOKEN=$(TELEGRAM_BOT_TOKEN_DEV) \
+		-e AWS_ACCOUNT_ID=$(AWS_ACCOUNT_ID) \
+		-e AWS_REGION=$(AWS_REGION) \
+		-e AWS_REPO_NAME=$(AWS_REPO_NAME) \
+		--network host \
+		--name memmoney-bot-local-container \
+		$(IMAGE_NAME)
+
 # Stop background container
 stop:
 	docker stop memmoney-bot-container || true
 	docker rm memmoney-bot-container || true
 
+# Stop local development container
+stop-local:
+	docker stop memmoney-bot-local-container || true
+	docker rm memmoney-bot-local-container || true
+
 # Clean up containers and images
 clean:
 	docker stop memmoney-bot-container || true
 	docker rm memmoney-bot-container || true
+	docker stop memmoney-bot-local-container || true
+	docker rm memmoney-bot-local-container || true
 	docker rmi $(IMAGE_NAME) || true
 
 # AWS deployment commands
@@ -81,7 +119,22 @@ migrate:
 		-locations="filesystem:migrations" \
 		migrate
 
+migrate-local:
+	@echo "🔄 Applying database migrations to localhost..."
+	@echo "🔗 Connecting to localhost: $(POSTGRES_HOST_LOCAL):$(POSTGRES_PORT_LOCAL)/$(POSTGRES_DB_LOCAL)" && \
+	flyway -url="jdbc:postgresql://$(POSTGRES_HOST_LOCAL):$(POSTGRES_PORT_LOCAL)/$(POSTGRES_DB_LOCAL)" \
+		-user="$(POSTGRES_USER_LOCAL)" \
+		-password="$(POSTGRES_PASSWORD_LOCAL)" \
+		-locations="filesystem:migrations" \
+		migrate
+
 deploy: push terraform-init terraform-apply migrate
+
+# Setup and run local development environment
+dev-setup: migrate-local run-local
+
+# Setup and run local development in background
+dev-setup-bg: migrate-local run-local-bg
 
 # Show ECS service info
 ecs-info:
