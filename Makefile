@@ -5,7 +5,7 @@ ECR_URL=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(AWS_REPO_NAME)
 TF_DIR=terraform
 IMAGE_NAME=memmoney-bot
 
-.PHONY: all build run run-local run-python run-python-local push terraform-init terraform-apply deploy clean migrate migrate-local
+.PHONY: all build run run-local run-python push terraform-init terraform-apply deploy clean migrate migrate-local
 
 all: build run
 
@@ -20,20 +20,17 @@ run: build
 		--network host \
 		$(IMAGE_NAME)
 
-# Run with local development environment variables
-run-local: build
-	docker run --rm -it \
-		-e POSTGRES_HOST=$(POSTGRES_HOST_LOCAL) \
-		-e POSTGRES_PORT=$(POSTGRES_PORT_LOCAL) \
-		-e POSTGRES_DB=$(POSTGRES_DB_LOCAL) \
-		-e POSTGRES_USER=$(POSTGRES_USER_LOCAL) \
-		-e POSTGRES_PASSWORD=$(POSTGRES_PASSWORD_LOCAL) \
-		-e TELEGRAM_BOT_TOKEN=$(TELEGRAM_BOT_TOKEN_DEV) \
-		-e AWS_ACCOUNT_ID=$(AWS_ACCOUNT_ID) \
-		-e AWS_REGION=$(AWS_REGION) \
-		-e AWS_REPO_NAME=$(AWS_REPO_NAME) \
-		--network host \
-		$(IMAGE_NAME)
+# Run Python app directly (without Docker) with local environment
+run-local:
+	@echo "🐍 Starting Python app directly with local environment..."
+	@cd app && \
+	POSTGRES_HOST=$(POSTGRES_HOST_LOCAL) \
+	POSTGRES_PORT=$(POSTGRES_PORT_LOCAL) \
+	POSTGRES_DB=$(POSTGRES_DB_LOCAL) \
+	POSTGRES_USER=$(POSTGRES_USER_LOCAL) \
+	POSTGRES_PASSWORD=$(POSTGRES_PASSWORD_LOCAL) \
+	TELEGRAM_BOT_TOKEN=$(TELEGRAM_BOT_TOKEN_DEV) \
+	python3 bot.py
 
 # Run in background
 run-bg: build
@@ -43,38 +40,19 @@ run-bg: build
 		--name memmoney-bot-container \
 		$(IMAGE_NAME)
 
-# Run local development in background
-run-local-bg: build
-	docker run -d \
-		-e POSTGRES_HOST=$(POSTGRES_HOST_LOCAL) \
-		-e POSTGRES_PORT=$(POSTGRES_PORT_LOCAL) \
-		-e POSTGRES_DB=$(POSTGRES_DB_LOCAL) \
-		-e POSTGRES_USER=$(POSTGRES_USER_LOCAL) \
-		-e POSTGRES_PASSWORD=$(POSTGRES_PASSWORD_LOCAL) \
-		-e TELEGRAM_BOT_TOKEN=$(TELEGRAM_BOT_TOKEN_DEV) \
-		-e AWS_ACCOUNT_ID=$(AWS_ACCOUNT_ID) \
-		-e AWS_REGION=$(AWS_REGION) \
-		-e AWS_REPO_NAME=$(AWS_REPO_NAME) \
-		--network host \
-		--name memmoney-bot-local-container \
-		$(IMAGE_NAME)
+
 
 # Stop background container
 stop:
 	docker stop memmoney-bot-container || true
 	docker rm memmoney-bot-container || true
 
-# Stop local development container
-stop-local:
-	docker stop memmoney-bot-local-container || true
-	docker rm memmoney-bot-local-container || true
+
 
 # Clean up containers and images
 clean:
 	docker stop memmoney-bot-container || true
 	docker rm memmoney-bot-container || true
-	docker stop memmoney-bot-local-container || true
-	docker rm memmoney-bot-local-container || true
 	docker rmi $(IMAGE_NAME) || true
 
 # AWS deployment commands
@@ -133,27 +111,10 @@ deploy: push terraform-init terraform-apply migrate
 # Setup and run local development environment
 dev-setup: migrate-local run-local
 
-# Setup and run local development in background
-dev-setup-bg: migrate-local run-local-bg
-
 # Run Python app directly (without Docker) with production env
 run-python:
 	@echo "🐍 Starting Python app directly..."
 	cd app && python3 bot.py
-
-# Run Python app directly (without Docker) with local env
-run-python-local:
-	@echo "🐍 Starting Python app directly with local environment..."
-	@cd app && \
-	POSTGRES_HOST=$(POSTGRES_HOST_LOCAL) \
-	POSTGRES_PORT=$(POSTGRES_PORT_LOCAL) \
-	POSTGRES_DB=$(POSTGRES_DB_LOCAL) \
-	POSTGRES_USER=$(POSTGRES_USER_LOCAL) \
-	POSTGRES_PASSWORD=$(POSTGRES_PASSWORD_LOCAL) \
-	TELEGRAM_BOT_TOKEN=$(TELEGRAM_BOT_TOKEN_DEV) \
-	python3 bot.py
-
-dev-python: migrate-local run-python-local
 
 # Show ECS service info
 ecs-info:

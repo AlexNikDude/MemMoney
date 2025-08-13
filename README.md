@@ -64,9 +64,59 @@ TelegramBot/
 
 ## 🚀 How to Run
 
+### Environment Setup
+
+The project supports separate environment configurations for local development and production:
+
+#### Local Development
 ```bash
-python3 bot.py
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run app with local environment variables
+make run-local
+
+# Or setup database and run app locally
+make dev-setup
 ```
+
+#### Production
+```bash
+# Run with Docker (production environment)
+make run
+
+# Run Docker in background
+make run-bg
+
+# Run Python directly (production environment)
+make run-python
+```
+
+### Available Make Commands
+
+```bash
+# Local Development (No Docker)
+make run-local          # Run app with local environment variables
+make dev-setup          # Setup DB + run app locally
+
+# Production (Docker)
+make run               # Run with Docker (production env)
+make run-bg            # Run Docker in background
+make run-python        # Run Python directly (production env)
+
+# Database
+make migrate-local     # Run migrations on local database
+make migrate           # Run migrations on production database
+
+# Deployment
+make deploy            # Deploy to AWS
+```
+
+### Environment Files
+
+- **`.env`** - Contains both local and production environment variables
+- **Local variables**: `POSTGRES_HOST_LOCAL`, `POSTGRES_DB_LOCAL`, `TELEGRAM_BOT_TOKEN_DEV`, etc.
+- **Production variables**: `POSTGRES_HOST`, `POSTGRES_DB`, `TELEGRAM_BOT_TOKEN`, etc.
 
 ## 🔧 Benefits of Refactoring
 
