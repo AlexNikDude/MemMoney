@@ -63,10 +63,10 @@ class BotHandlers:
         await update.message.reply_text(
             '👋 Hello! Welcome to your personal spending tracker.\n\n'
             '💡 **How to add transactions:**\n'
-            'Simply send a message with amount and currency, e.g.:\n'
-            '• "100 USD groceries"\n'
-            '• "25.50 EUR lunch"\n'
-            '• "15 GBP coffee"\n\n',
+            'Simply send a message with amount, e.g.:\n'
+            '• "100 groceries" (uses your default currency)\n'
+            '• "25.50 lunch" (uses your default currency)\n'
+            '• "15 USD coffee" (specify any currency)\n\n',
             reply_markup=reply_markup
         )
     
@@ -132,17 +132,31 @@ class BotHandlers:
             await self.handle_keyboard_button(update, context, message)
             return
         
-        # Handle transaction input
-        match = re.match(r'^(\d+(?:\.\d{1,2})?)\s*([A-Za-z]{3})\b(.*)$', message)
-        if match:
-            await self.handle_transaction_input(update, context, match)
+        # Handle transaction input - two patterns:
+        # 1. Number + currency code (e.g., "100 USD groceries")
+        # 2. Just number (e.g., "100 groceries") - uses default currency
+        match_with_currency = re.match(r'^(\d+(?:\.\d{1,2})?)\s*([A-Za-z]{3})\b(.*)$', message)
+        match_just_number = re.match(r'^(\d+(?:\.\d{1,2})?)\s*(.*)$', message)
+        
+        if match_with_currency:
+            await self.handle_transaction_input(update, context, match_with_currency, has_currency=True)
+        elif match_just_number:
+            await self.handle_transaction_input(update, context, match_just_number, has_currency=False)
         else:
-            await update.message.reply_text("Please send a number followed by a 3-letter currency code, e.g. '100 USD'.")
+            await update.message.reply_text("Please send a number (e.g., '100 groceries') or a number with currency (e.g., '100 USD groceries').")
     
-    async def handle_transaction_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE, match) -> None:
+    async def handle_transaction_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE, match, has_currency: bool) -> None:
         """Handle transaction input and show category selection"""
-        amount, currency, message_without_amount_currency = match.groups()
         user_id = update.effective_user.id
+        
+        if has_currency:
+            # Pattern: number + currency + message
+            amount, currency, message_without_amount_currency = match.groups()
+            currency = currency.upper()
+        else:
+            # Pattern: number + message (use default currency)
+            amount, message_without_amount_currency = match.groups()
+            currency = self.db.get_user_currency(str(user_id))
         
         # Get categories for the user
         categories = self.db.get_user_categories(str(user_id))
@@ -270,10 +284,10 @@ class BotHandlers:
             chat_id=query.from_user.id,
             text="👋 Welcome to your personal spending tracker!\n\n"
                 "💡 **How to add transactions:**\n"
-                "Simply send a message with amount and currency, e.g.:\n"
-                f"• \"100 {currency} groceries\"\n"
-                f"• \"25.50 {currency} lunch\"\n"
-                "• \"15 USD coffee\" (you can still use other currencies)\n\n"
+                "Simply send a message with amount, e.g.:\n"
+                f"• \"100 groceries\" (uses your default {currency})\n"
+                f"• \"25.50 lunch\" (uses your default {currency})\n"
+                "• \"15 USD coffee\" (specify any currency)\n\n"
                 "Use the buttons below for quick access:",
             reply_markup=reply_markup
         )
