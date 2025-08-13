@@ -1,4 +1,6 @@
 import psycopg2
+import requests
+from datetime import date
 from config import Config
 
 class Database:
@@ -62,13 +64,25 @@ class Database:
     
     def save_transaction(self, user_id: str, amount: str, currency: str, message: str, category_id: int):
         """Save a new transaction"""
+        # Get user's default currency
+        user_default_currency = self.get_user_currency(user_id)
+        
+        # Calculate default currency amount
+        if currency.upper() == user_default_currency:
+            # If transaction currency is the same as user's default currency, use the same amount
+            default_currency_amount = amount
+        else:
+            # Convert to user's default currency using API rates
+            conversion_rate = self.get_conversion_rate(currency, user_default_currency)
+            default_currency_amount = float(amount) * conversion_rate
+        
         with self.get_cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO transactions (user_id, amount, currency, message, category_id, timestamp)
-                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO transactions (user_id, amount, currency, message, category_id, timestamp, default_currency_amount)
+                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
                 """,
-                (str(user_id), amount, currency, message, category_id)
+                (str(user_id), amount, currency, message, category_id, default_currency_amount)
             )
             self.connection.commit()
     
@@ -124,6 +138,84 @@ class Database:
             cur.execute("SELECT currency FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             return row[0] if row else "USD"
+    
+    def get_conversion_rate(self, from_currency: str, to_currency: str, target_date: date = None) -> float:
+        """Get conversion rate from database or fetch from API"""
+        if target_date is None:
+            target_date = date.today()
+        
+        # Check if USD rates for this date exist in database
+        usd_rates = self.get_cached_usd_rates(target_date)
+        if usd_rates:
+            # Calculate conversion rate from cached USD rates
+            return self.calculate_rate_from_usd_rates(from_currency, to_currency, usd_rates)
+        
+        # USD rates not found, fetch from API and cache
+        return self.fetch_and_cache_usd_rates(target_date, from_currency, to_currency)
+    
+    def get_cached_usd_rates(self, target_date: date) -> dict:
+        """Get cached USD rates for a specific date"""
+        with self.get_cursor() as cur:
+            cur.execute(
+                "SELECT to_currency, rate FROM conversion_rates WHERE date = %s AND from_currency = 'USD'",
+                (target_date,)
+            )
+            rows = cur.fetchall()
+            if rows:
+                return {row[0].lower(): float(row[1]) for row in rows}
+            return {}
+    
+    def calculate_rate_from_usd_rates(self, from_currency: str, to_currency: str, usd_rates: dict) -> float:
+        """Calculate conversion rate from cached USD rates"""
+        if from_currency.upper() == 'USD':
+            # Direct conversion from USD to target currency
+            return usd_rates.get(to_currency.lower(), 1.0)
+        elif to_currency.upper() == 'USD':
+            # Direct conversion from source currency to USD
+            return 1.0 / usd_rates.get(from_currency.lower(), 1.0)
+        else:
+            # Cross-currency conversion: from_currency -> USD -> to_currency
+            from_to_usd_rate = 1.0 / usd_rates.get(from_currency.lower(), 1.0)
+            usd_to_target_rate = usd_rates.get(to_currency.lower(), 1.0)
+            return from_to_usd_rate * usd_to_target_rate
+    
+    def fetch_and_cache_usd_rates(self, target_date: date, from_currency: str, to_currency: str) -> float:
+        """Fetch USD rates from API and cache them, then calculate the needed conversion rate"""
+        try:
+            # Fetch USD rates from API
+            response = requests.get("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json")
+            response.raise_for_status()
+            
+            api_data = response.json()
+            usd_rates = api_data.get('usd', {})
+            
+            # Cache all USD rates in database
+            with self.get_cursor() as cur:
+                for currency, rate in usd_rates.items():
+                    # Skip currencies with codes longer than 3 characters
+                    if len(currency) > 3:
+                        print(f"Skipping currency {currency} - code too long")
+                        continue
+                    
+                    cur.execute(
+                        """
+                        INSERT INTO conversion_rates (date, from_currency, to_currency, rate)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (date, from_currency, to_currency) DO UPDATE SET rate = EXCLUDED.rate
+                        """,
+                        (target_date, 'USD', currency.upper(), rate)
+                    )
+                self.connection.commit()
+            
+            print(f"Cached USD rates for {target_date}: {len(usd_rates)} currencies")
+            
+            # Calculate and return the needed conversion rate
+            return self.calculate_rate_from_usd_rates(from_currency, to_currency, usd_rates)
+            
+        except Exception as e:
+            print(f"Error fetching USD rates: {e}")
+            # Fallback to 1:1 conversion if API fails
+            return 1.0
     
     def close(self):
         """Close database connection"""
