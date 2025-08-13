@@ -30,7 +30,7 @@ class Database:
             self.connect()
         return self.connection.cursor()
     
-    def initialize_user_categories(self, user_id: str):
+    def initialize_user_categories(self, user_id: int):
         """Initialize default categories for a new user"""
         with self.get_cursor() as cur:
             for category in Config.DEFAULT_CATEGORIES:
@@ -46,12 +46,12 @@ class Database:
                 )
             self.connection.commit()
     
-    def get_user_categories(self, user_id: str):
+    def get_user_categories(self, user_id: int):
         """Get all categories for a user"""
         with self.get_cursor() as cur:
             cur.execute(
                 "SELECT id, category_name FROM categories WHERE user_id = %s ORDER BY id",
-                (str(user_id),)
+                (user_id,)
             )
             return cur.fetchall()
     
@@ -62,7 +62,7 @@ class Database:
             row = cur.fetchone()
             return row[0] if row else "Unknown"
     
-    def save_transaction(self, user_id: str, amount: str, currency: str, message: str, category_id: int):
+    def save_transaction(self, user_id: int, amount: str, currency: str, message: str, category_id: int):
         """Save a new transaction"""
         # Get user's default currency
         user_default_currency = self.get_user_currency(user_id)
@@ -82,48 +82,49 @@ class Database:
                 INSERT INTO transactions (user_id, amount, currency, message, category_id, timestamp, default_currency_amount)
                 VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
                 """,
-                (str(user_id), amount, currency, message, category_id, default_currency_amount)
+                (user_id, amount, currency, message, category_id, default_currency_amount)
             )
             self.connection.commit()
     
-    def get_user_transactions(self, user_id: str):
+    def get_user_transactions(self, user_id: int):
         """Get all transactions for a user"""
         with self.get_cursor() as cur:
             cur.execute(
                 """
-                SELECT t.amount, t.currency, t.message, c.category_name, t.timestamp
+                SELECT t.amount, t.currency, t.message, c.category_name, t.timestamp, t.default_currency_amount
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
                 WHERE t.user_id = %s
                 ORDER BY t.transaction_id
                 """,
-                (str(user_id),)
+                (user_id,)
             )
             return cur.fetchall()
     
-    def get_transactions_summary(self, user_id: str, time_condition: str = ""):
-        """Get transaction summary for a user with optional time filter"""
+    def get_transactions_summary(self, user_id: int, time_condition: str = ""):
+        """Get transaction summary for a user with optional time filter using default currency amounts"""
         with self.get_cursor() as cur:
             cur.execute(
                 f"""
-                SELECT c.category_name, SUM(t.amount) as total_amount, t.currency
+                SELECT c.category_name, SUM(t.default_currency_amount) as total_amount, u.currency as default_currency
                 FROM transactions t
                 LEFT JOIN categories c ON t.category_id = c.id
+                LEFT JOIN users u ON t.user_id = u.user_id
                 WHERE t.user_id = %s {time_condition}
-                GROUP BY c.category_name, t.currency
+                GROUP BY c.category_name, u.currency
                 ORDER BY total_amount DESC
                 """,
-                (str(user_id),)
+                (user_id,)
             )
             return cur.fetchall()
     
-    def user_exists(self, user_id: str) -> bool:
+    def user_exists(self, user_id: int) -> bool:
         """Check if a user exists in the users table"""
         with self.get_cursor() as cur:
             cur.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
             return cur.fetchone() is not None
     
-    def create_user(self, user_id: str, currency: str):
+    def create_user(self, user_id: int, currency: str):
         """Create a new user with the specified currency"""
         with self.get_cursor() as cur:
             cur.execute(
@@ -132,7 +133,7 @@ class Database:
             )
             self.connection.commit()
     
-    def get_user_currency(self, user_id: str) -> str:
+    def get_user_currency(self, user_id: int) -> str:
         """Get the user's default currency"""
         with self.get_cursor() as cur:
             cur.execute("SELECT currency FROM users WHERE user_id = %s", (user_id,))

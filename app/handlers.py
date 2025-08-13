@@ -15,7 +15,7 @@ class BotHandlers:
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command"""
-        user_id = str(update.effective_user.id)
+        user_id = update.effective_user.id
         
         # Check if user exists
         if not self.db.user_exists(user_id):
@@ -49,7 +49,7 @@ class BotHandlers:
     
     async def show_welcome_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Show welcome message for existing users"""
-        user_id = str(update.effective_user.id)
+        user_id = update.effective_user.id
         
         # Initialize user categories
         self.db.initialize_user_categories(user_id)
@@ -89,7 +89,7 @@ class BotHandlers:
     async def list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /list command"""
         user_id = update.effective_user.id
-        transactions = self.db.get_user_transactions(str(user_id))
+        transactions = self.db.get_user_transactions(user_id)
         
         if not transactions:
             await update.message.reply_text("You have no transactions recorded.")
@@ -156,10 +156,10 @@ class BotHandlers:
         else:
             # Pattern: number + message (use default currency)
             amount, message_without_amount_currency = match.groups()
-            currency = self.db.get_user_currency(str(user_id))
+            currency = self.db.get_user_currency(user_id)
         
         # Get categories for the user
-        categories = self.db.get_user_categories(str(user_id))
+        categories = self.db.get_user_categories(user_id)
         if not categories:
             await update.message.reply_text("No categories found. Please use /start to initialize your categories.")
             return
@@ -241,7 +241,7 @@ class BotHandlers:
         # Get category name and save transaction
         category_name = self.db.get_category_name(category_id)
         self.db.save_transaction(
-            str(user_id), 
+            user_id, 
             transaction['amount'], 
             transaction['currency'], 
             transaction['message'], 
@@ -258,7 +258,7 @@ class BotHandlers:
         data = query.data
         
         await query.answer()
-        user_id = str(query.from_user.id)
+        user_id = query.from_user.id
         
         # Extract currency from callback data
         currency = data.replace("currency_", "")
@@ -326,7 +326,7 @@ class BotHandlers:
             return
         
         # Get transaction data
-        category_totals = self.db.get_transactions_summary(str(user_id), sql_condition)
+        category_totals = self.db.get_transactions_summary(user_id, sql_condition)
         
         if not category_totals:
             await query.edit_message_text(f"You have no transactions for {period_title.lower()}.")

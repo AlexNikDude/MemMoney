@@ -34,6 +34,6 @@ Simply send a message with amount and currency, e.g.:
         "Health",
         "Clothing & Footwear",
         "Entertainment & Leisure",
-        "Gifts",
+        "Subscriptions",
         "Other"
     ] 
