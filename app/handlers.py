@@ -17,6 +17,40 @@ class BotHandlers:
         """Handle /start command"""
         user_id = str(update.effective_user.id)
         
+        # Check if user exists
+        if not self.db.user_exists(user_id):
+            # Show currency selection
+            await self.show_currency_selection(update, context)
+            return
+        
+        # User exists, show welcome message
+        await self.show_welcome_message(update, context)
+    
+    async def show_currency_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show currency selection buttons"""
+        currencies = ["GEL", "USD", "RUB", "EUR", "BYN", "KZT", "UAH"]
+        
+        keyboard = []
+        for i in range(0, len(currencies), 2):
+            row = []
+            row.append(InlineKeyboardButton(currencies[i], callback_data=f"currency_{currencies[i]}"))
+            if i + 1 < len(currencies):
+                row.append(InlineKeyboardButton(currencies[i + 1], callback_data=f"currency_{currencies[i + 1]}"))
+            keyboard.append(row)
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "👋 Welcome to your personal spending tracker!\n\n"
+            "💰 **What is your default currency?**\n"
+            "Please select your preferred currency:",
+            reply_markup=reply_markup
+        )
+    
+    async def show_welcome_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show welcome message for existing users"""
+        user_id = str(update.effective_user.id)
+        
         # Initialize user categories
         self.db.initialize_user_categories(user_id)
         
@@ -32,8 +66,7 @@ class BotHandlers:
             'Simply send a message with amount and currency, e.g.:\n'
             '• "100 USD groceries"\n'
             '• "25.50 EUR lunch"\n'
-            '• "15 GBP coffee"\n\n'
-            'Use the buttons below for quick access:',
+            '• "15 GBP coffee"\n\n',
             reply_markup=reply_markup
         )
     
@@ -165,6 +198,8 @@ class BotHandlers:
             await self.handle_summarize_callback(update, context)
         elif data.startswith("cat_"):
             await self.handle_category_callback(update, context)
+        elif data.startswith("currency_"):
+            await self.handle_currency_callback(update, context)
         else:
             print(f"Unknown callback data: {data}")
             await query.answer("Unknown callback")
@@ -201,6 +236,46 @@ class BotHandlers:
         
         await query.edit_message_text(
             f"All is good. Transaction {transaction['amount']} {transaction['currency']} is written under category: {category_name}."
+        )
+    
+    async def handle_currency_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle currency selection callback"""
+        query = update.callback_query
+        data = query.data
+        
+        await query.answer()
+        user_id = str(query.from_user.id)
+        
+        # Extract currency from callback data
+        currency = data.replace("currency_", "")
+        
+        # Create user with selected currency
+        self.db.create_user(user_id, currency)
+        
+        # Initialize user categories
+        self.db.initialize_user_categories(user_id)
+        
+        # First, edit the original message to confirm currency selection
+        await query.edit_message_text(
+            f"✅ Perfect! Your default currency is set to **{currency}**."
+        )
+        
+        # Then send a new message with the persistent keyboard
+        keyboard = [
+            [KeyboardButton("🤌 Summarize"), KeyboardButton("🧐 Help")]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+        
+        await context.bot.send_message(
+            chat_id=query.from_user.id,
+            text="👋 Welcome to your personal spending tracker!\n\n"
+                "💡 **How to add transactions:**\n"
+                "Simply send a message with amount and currency, e.g.:\n"
+                f"• \"100 {currency} groceries\"\n"
+                f"• \"25.50 {currency} lunch\"\n"
+                "• \"15 USD coffee\" (you can still use other currencies)\n\n"
+                "Use the buttons below for quick access:",
+            reply_markup=reply_markup
         )
     
     async def handle_summarize_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

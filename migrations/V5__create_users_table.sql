@@ -1,0 +1,5 @@
+CREATE TABLE users (
+    user_id BIGINT PRIMARY KEY,
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+); 

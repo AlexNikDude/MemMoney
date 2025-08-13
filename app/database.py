@@ -103,6 +103,28 @@ class Database:
             )
             return cur.fetchall()
     
+    def user_exists(self, user_id: str) -> bool:
+        """Check if a user exists in the users table"""
+        with self.get_cursor() as cur:
+            cur.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
+            return cur.fetchone() is not None
+    
+    def create_user(self, user_id: str, currency: str):
+        """Create a new user with the specified currency"""
+        with self.get_cursor() as cur:
+            cur.execute(
+                "INSERT INTO users (user_id, currency) VALUES (%s, %s)",
+                (user_id, currency)
+            )
+            self.connection.commit()
+    
+    def get_user_currency(self, user_id: str) -> str:
+        """Get the user's default currency"""
+        with self.get_cursor() as cur:
+            cur.execute("SELECT currency FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            return row[0] if row else "USD"
+    
     def close(self):
         """Close database connection"""
         if self.connection and not self.connection.closed:
