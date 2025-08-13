@@ -20,9 +20,20 @@ class Config:
     HELP_TEXT = """
 🤖 **How to add transactions:**
 Simply send a message with amount and currency, e.g.:
-• "100 USD groceries"
-• "25.50 EUR lunch"
-• "15 GBP coffee"
+• "100" (we'll use your default currency {currency})
+• "25.50 USD" (if you set currency the amount will be recorded in specified currency)
+• "15 USD coffee" (you can add additional messages)
+"""
+    
+    # Welcome text with currency (for new users)
+    WELCOME_TEXT = """👋 Welcome to your personal spending tracker!
+
+💡 **How to add transactions:**
+Simply send a message with amount, e.g.:
+• "100" (we'll use your default currency {currency})
+• "25.50 USD" (if you set currency the amount will be recorded in specified currency)
+• "15 USD coffee" (you can add additional messages)
+
 """
     
     # Default categories

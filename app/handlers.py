@@ -61,12 +61,7 @@ class BotHandlers:
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
         
         await update.message.reply_text(
-            '👋 Hello! Welcome to your personal spending tracker.\n\n'
-            '💡 **How to add transactions:**\n'
-            'Simply send a message with amount, e.g.:\n'
-            '• "100 groceries" (uses your default currency)\n'
-            '• "25.50 lunch" (uses your default currency)\n'
-            '• "15 USD coffee" (specify any currency)\n\n',
+            Config.WELCOME_TEXT,
             reply_markup=reply_markup
         )
     
@@ -282,13 +277,7 @@ class BotHandlers:
         
         await context.bot.send_message(
             chat_id=query.from_user.id,
-            text="👋 Welcome to your personal spending tracker!\n\n"
-                "💡 **How to add transactions:**\n"
-                "Simply send a message with amount, e.g.:\n"
-                f"• \"100 groceries\" (uses your default {currency})\n"
-                f"• \"25.50 lunch\" (uses your default {currency})\n"
-                "• \"15 USD coffee\" (specify any currency)\n\n"
-                "Use the buttons below for quick access:",
+            text=Config.WELCOME_TEXT.format(currency=currency),
             reply_markup=reply_markup
         )
     
