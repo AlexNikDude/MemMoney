@@ -5,7 +5,7 @@ ECR_URL=$(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/$(AWS_REPO_NAME)
 TF_DIR=terraform
 IMAGE_NAME=memmoney-bot
 
-.PHONY: all build run run-local push terraform-init terraform-apply deploy clean migrate migrate-local
+.PHONY: all build run run-local run-python run-python-local push terraform-init terraform-apply deploy clean migrate migrate-local
 
 all: build run
 
@@ -135,6 +135,25 @@ dev-setup: migrate-local run-local
 
 # Setup and run local development in background
 dev-setup-bg: migrate-local run-local-bg
+
+# Run Python app directly (without Docker) with production env
+run-python:
+	@echo "🐍 Starting Python app directly..."
+	cd app && python3 bot.py
+
+# Run Python app directly (without Docker) with local env
+run-python-local:
+	@echo "🐍 Starting Python app directly with local environment..."
+	@cd app && \
+	POSTGRES_HOST=$(POSTGRES_HOST_LOCAL) \
+	POSTGRES_PORT=$(POSTGRES_PORT_LOCAL) \
+	POSTGRES_DB=$(POSTGRES_DB_LOCAL) \
+	POSTGRES_USER=$(POSTGRES_USER_LOCAL) \
+	POSTGRES_PASSWORD=$(POSTGRES_PASSWORD_LOCAL) \
+	TELEGRAM_BOT_TOKEN=$(TELEGRAM_BOT_TOKEN_DEV) \
+	python3 bot.py
+
+dev-python: migrate-local run-python-local
 
 # Show ECS service info
 ecs-info:
