@@ -348,7 +348,6 @@ class BotHandlers:
         await context.bot.send_photo(
             chat_id=query.from_user.id,
             photo=chart_buffer,
-            caption=f"📊 Spending Summary - {period_title}\n💰 Total: {sum(amounts):.2f} {currency}"
         )
         
         # Also send a text summary

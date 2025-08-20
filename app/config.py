@@ -39,10 +39,10 @@ Simply send a message with amount, e.g.:
     # Default categories
     DEFAULT_CATEGORIES = [
         "Groceries",
-        "Eat out",
+        "Eat out & Food delivery",
         "Housing",
         "Transportation",
-        "Health",
+        "Health & Beauty",
         "Clothing & Footwear",
         "Entertainment & Leisure",
         "Subscriptions",
