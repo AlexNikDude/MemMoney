@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Python
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+
+# Terraform
+terraform/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Fly.io
+.fly/
+
+# Documentation
+README.md
+CLAUDE.md
+*.md
+
+# Backups
+backup_*.sql
+data_backup_*.sql
+flyway-supabase.conf
+scripts/
+
+# Environment
+.env
+
+# Archives
+archive/

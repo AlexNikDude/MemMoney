@@ -1,0 +1,18 @@
+# fly.toml app configuration file generated for memmoney-bot on 2025-11-28T01:10:34+04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'memmoney-bot'
+primary_region = 'ams'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[deploy]
+  strategy = 'immediate'
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512

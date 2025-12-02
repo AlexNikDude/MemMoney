@@ -80,84 +80,51 @@ make run-local
 make dev-setup
 ```
 
-#### Production
+#### Production (Fly.io + Supabase)
 ```bash
-# Run with Docker (production environment)
-make run
+# Deploy to Fly.io (includes database migrations)
+make deploy
 
-# Run Docker in background
-make run-bg
+# Or deploy without migrations
+make deploy-fly
 
-# Run Python directly (production environment)
-make run-python
+# View app status
+make status
+
+# View logs
+make logs-tail
 ```
 
 ### Available Make Commands
 
 ```bash
-# Local Development (No Docker)
-make run-local          # Run app with local environment variables
-make dev-setup          # Setup DB + run app locally
+# Local Development
+make run-local          # Run bot with local database
+make dev-setup          # Setup local DB + run bot
+make migrate-local      # Apply migrations to local DB
 
-# Production (Docker)
-make run               # Run with Docker (production env)
-make run-bg            # Run Docker in background
-make run-python        # Run Python directly (production env)
+# Docker (for testing)
+make build              # Build Docker image
+make run                # Run Docker container locally
 
 # Database
-make migrate-local     # Run migrations on local database
-make migrate           # Run migrations on production database
+make migrate-supabase   # Apply migrations to Supabase
+make backup             # Backup Supabase database
 
-# Deployment
-make deploy            # Deploy to AWS
+# Fly.io Deployment
+make deploy             # Full deployment (migrate + deploy)
+make deploy-fly         # Deploy to Fly.io only
+make set-secrets        # Set Fly.io secrets from .env
+make list-secrets       # List current secrets
+
+# Fly.io Management
+make status             # Show app status
+make logs               # View recent logs
+make logs-tail          # Tail logs (follow)
+make ssh                # SSH into VM
+make restart            # Restart app
+make scale              # Show current scale
 ```
-
-### Environment Files
-
-- **`.env`** - Contains both local and production environment variables
-- **Local variables**: `POSTGRES_HOST_LOCAL`, `POSTGRES_DB_LOCAL`, `TELEGRAM_BOT_TOKEN_DEV`, etc.
-- **Production variables**: `POSTGRES_HOST`, `POSTGRES_DB`, `TELEGRAM_BOT_TOKEN`, etc.
-
-## 🔧 Benefits of Refactoring
-
-### 1. **Maintainability**
-- **Single Responsibility**: Each module has one clear purpose
-- **Easy to Modify**: Change chart styling without touching database code
-- **Clear Dependencies**: Each module imports only what it needs
-
-### 2. **Testability**
-- **Isolated Components**: Test database operations separately from bot logic
-- **Mock Support**: Easy to mock dependencies for unit tests
-- **Clear Interfaces**: Well-defined method signatures
-
-### 3. **Scalability**
-- **Modular Design**: Add new features without affecting existing code
-- **Reusable Components**: Chart generator can be used for other features
-- **Clean Architecture**: Easy to extend and modify
-
-### 4. **Code Quality**
-- **No Duplication**: Shared constants and logic
-- **Type Hints**: Better code documentation
-- **Error Handling**: Centralized error management
-- **Logging**: Proper debug output
-
-## 🎯 Key Improvements
-
-### Before (Single File)
-- ❌ 400+ lines in one file
-- ❌ Mixed concerns (DB, UI, logic)
-- ❌ Duplicated code
-- ❌ Hard to test
-- ❌ Difficult to maintain
-
-### After (Modular)
-- ✅ 5 focused modules
-- ✅ Clear separation of concerns
-- ✅ No code duplication
-- ✅ Easy to test
-- ✅ Simple to maintain
-
-
 
 ## 🛠️ Development Workflow
 
@@ -176,7 +143,13 @@ make deploy            # Deploy to AWS
 
 - **Faster Startup**: Only load what's needed
 - **Memory Efficient**: Better resource management
-- **Connection Pooling**: Database connections are managed properly
+- **Connection Pooling**: Supabase provides built-in connection pooling (port 6543)
 - **Cleanup**: Proper resource cleanup on shutdown
+
+## 🌐 Deployment
+
+The MemMoney bot is deployed on:
+- **Fly.io** (Amsterdam region) - Free tier, 512MB RAM
+- **Supabase** (PostgreSQL) - Free tier, 500MB storage, connection pooling included
 
 The MemMoney bot provides a clean, maintainable codebase with all the features you need for personal spending tracking! 🎉 

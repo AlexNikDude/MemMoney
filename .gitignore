@@ -1,10 +1,27 @@
 .env
-.gitignore
 .idea
 .venv
+
 # Terraform
 .terraform/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
 /db-info.json
+
+# Fly.io
+.fly/
+
+# Backups
+backup_*.sql
+data_backup_*.sql
+flyway-supabase.conf
+
+# Archives
+archive/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
