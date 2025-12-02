@@ -62,11 +62,11 @@ class Database:
             row = cur.fetchone()
             return row[0] if row else "Unknown"
     
-    def save_transaction(self, user_id: int, amount: str, currency: str, message: str, category_id: int):
-        """Save a new transaction"""
+    def save_transaction(self, user_id: int, amount: str, currency: str, message: str, category_id: int) -> int:
+        """Save a new transaction and return its ID"""
         # Get user's default currency
         user_default_currency = self.get_user_currency(user_id)
-        
+
         # Calculate default currency amount
         if currency.upper() == user_default_currency:
             # If transaction currency is the same as user's default currency, use the same amount
@@ -75,16 +75,19 @@ class Database:
             # Convert to user's default currency using API rates
             conversion_rate = self.get_conversion_rate(currency, user_default_currency)
             default_currency_amount = float(amount) * conversion_rate
-        
+
         with self.get_cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO transactions (user_id, amount, currency, message, category_id, timestamp, default_currency_amount)
                 VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                RETURNING transaction_id
                 """,
                 (user_id, amount, currency, message, category_id, default_currency_amount)
             )
+            transaction_id = cur.fetchone()[0]
             self.connection.commit()
+            return transaction_id
     
     def get_user_transactions(self, user_id: int):
         """Get all transactions for a user"""
@@ -218,6 +221,35 @@ class Database:
             # Fallback to 1:1 conversion if API fails
             return 1.0
     
+    def delete_transaction(self, transaction_id: int):
+        """Delete a transaction by ID"""
+        with self.get_cursor() as cur:
+            cur.execute("DELETE FROM transactions WHERE transaction_id = %s", (transaction_id,))
+            self.connection.commit()
+
+    def get_transaction(self, transaction_id: int):
+        """Get transaction details by ID"""
+        with self.get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.transaction_id, t.user_id, t.amount, t.currency, t.message, t.category_id, c.category_name
+                FROM transactions t
+                LEFT JOIN categories c ON t.category_id = c.id
+                WHERE t.transaction_id = %s
+                """,
+                (transaction_id,)
+            )
+            return cur.fetchone()
+
+    def update_transaction_category(self, transaction_id: int, new_category_id: int):
+        """Update transaction category"""
+        with self.get_cursor() as cur:
+            cur.execute(
+                "UPDATE transactions SET category_id = %s WHERE transaction_id = %s",
+                (new_category_id, transaction_id)
+            )
+            self.connection.commit()
+
     def close(self):
         """Close database connection"""
         if self.connection and not self.connection.closed:

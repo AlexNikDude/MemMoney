@@ -173,15 +173,21 @@ class BotHandlers:
         """Handle callback queries"""
         query = update.callback_query
         data = query.data
-        
+
         print(f"Callback received: {data}")  # Debug print
-        
+
         if data.startswith("summarize_"):
             await self.handle_summarize_callback(update, context)
         elif data.startswith("cat_"):
             await self.handle_category_callback(update, context)
         elif data.startswith("currency_"):
             await self.handle_currency_callback(update, context)
+        elif data.startswith("delete_"):
+            await self.handle_delete_callback(update, context)
+        elif data.startswith("edit_"):
+            await self.handle_edit_callback(update, context)
+        elif data.startswith("editcat_"):
+            await self.handle_edit_category_callback(update, context)
         else:
             print(f"Unknown callback data: {data}")
             await query.answer("Unknown callback")
@@ -208,16 +214,26 @@ class BotHandlers:
         
         # Get category name and save transaction
         category_name = self.db.get_category_name(category_id)
-        self.db.save_transaction(
-            user_id, 
-            transaction['amount'], 
-            transaction['currency'], 
-            transaction['message'], 
+        transaction_id = self.db.save_transaction(
+            user_id,
+            transaction['amount'],
+            transaction['currency'],
+            transaction['message'],
             category_id
         )
-        
+
+        # Add Edit and Delete buttons
+        keyboard = [
+            [
+                InlineKeyboardButton("✏️ Edit", callback_data=f"edit_{transaction_id}"),
+                InlineKeyboardButton("🗑️ Delete", callback_data=f"delete_{transaction_id}")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
         await query.edit_message_text(
-            f"✅ Transaction {transaction['amount']} {transaction['currency']} is written under category: {category_name}."
+            f"✅ Transaction {transaction['amount']} {transaction['currency']} is written under category: {category_name}.",
+            reply_markup=reply_markup
         )
     
     async def handle_currency_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -337,6 +353,89 @@ class BotHandlers:
             text="\n".join(summary_lines)
         )
     
+    async def handle_delete_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle delete transaction callback"""
+        query = update.callback_query
+        data = query.data
+
+        await query.answer()
+
+        # Extract transaction ID
+        transaction_id = int(data.replace("delete_", ""))
+
+        # Delete the transaction
+        self.db.delete_transaction(transaction_id)
+
+        await query.edit_message_text("🗑️ Transaction deleted successfully!")
+
+    async def handle_edit_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle edit transaction callback - show category options"""
+        query = update.callback_query
+        data = query.data
+
+        await query.answer()
+        user_id = query.from_user.id
+
+        # Extract transaction ID
+        transaction_id = int(data.replace("edit_", ""))
+
+        # Get transaction details
+        transaction = self.db.get_transaction(transaction_id)
+        if not transaction:
+            await query.edit_message_text("Transaction not found.")
+            return
+
+        # Get user categories
+        categories = self.db.get_user_categories(user_id)
+        if not categories:
+            await query.edit_message_text("No categories found.")
+            return
+
+        # Show categories for editing
+        keyboard = [
+            [InlineKeyboardButton(cat_name, callback_data=f"editcat_{transaction_id}_{cat_id}")]
+            for cat_id, cat_name in categories
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            f"✏️ Select new category for {transaction[2]} {transaction[3]}:",
+            reply_markup=reply_markup
+        )
+
+    async def handle_edit_category_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle editing transaction category"""
+        query = update.callback_query
+        data = query.data
+
+        await query.answer()
+
+        # Extract transaction ID and new category ID
+        parts = data.replace("editcat_", "").split("_")
+        transaction_id = int(parts[0])
+        new_category_id = int(parts[1])
+
+        # Get transaction and category details
+        transaction = self.db.get_transaction(transaction_id)
+        new_category_name = self.db.get_category_name(new_category_id)
+
+        # Update the transaction category
+        self.db.update_transaction_category(transaction_id, new_category_id)
+
+        # Show updated message with Edit and Delete buttons again
+        keyboard = [
+            [
+                InlineKeyboardButton("✏️ Edit", callback_data=f"edit_{transaction_id}"),
+                InlineKeyboardButton("🗑️ Delete", callback_data=f"delete_{transaction_id}")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            f"✅ Transaction {transaction[2]} {transaction[3]} updated to category: {new_category_name}.",
+            reply_markup=reply_markup
+        )
+
     def cleanup(self):
         """Cleanup resources"""
         self.db.close() 
