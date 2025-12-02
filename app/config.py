@@ -18,22 +18,12 @@ class Config:
     
     # Help text constant
     HELP_TEXT = """
-🤖 **How to add transactions:**
-Simply send a message with amount and currency, e.g.:
-• "100" (we'll use your default currency {currency})
-• "25.50 USD" (if you set currency the amount will be recorded in specified currency)
-• "15 USD coffee" (you can add additional messages)
-"""
-    
-    # Welcome text with currency (for new users)
-    WELCOME_TEXT = """👋 Welcome to your personal spending tracker!
+🤖 How to add transactions: 🤖
 
-💡 **How to add transactions:**
-Simply send a message with amount, e.g.:
-• "100" (we'll use your default currency {currency})
-• "25.50 USD" (if you set currency the amount will be recorded in specified currency)
-• "15 USD coffee" (you can add additional messages)
-
+Simply send a message with amount and currency, for example:
+"100" - as simple as possible, we'll use your default currency {currency}
+"25 USD" - you can specify currency if needed (use three-letter currency code)
+"15 USD coffee" - you can add any text to describe your spends
 """
     
     # Default categories

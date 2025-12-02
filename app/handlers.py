@@ -50,58 +50,29 @@ class BotHandlers:
     async def show_welcome_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Show welcome message for existing users"""
         user_id = update.effective_user.id
-        
+
         # Initialize user categories
         self.db.initialize_user_categories(user_id)
-        
+
         # Show persistent keyboard menu
         keyboard = [
             [KeyboardButton("🤌 Summarize"), KeyboardButton("🧐 Help")]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
-        
-        await update.message.reply_text(
-            Config.WELCOME_TEXT,
-            reply_markup=reply_markup
-        )
+
+        # Send welcome image with caption
+        with open('images/welcome.png', 'rb') as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption="👋 Welcome to your personal spending tracker!",
+                reply_markup=reply_markup
+            )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /help command"""
-        await update.message.reply_text(Config.HELP_TEXT)
-    
-    async def menu_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /menu command"""
-        keyboard = [
-            [KeyboardButton("🤌 Summarize"), KeyboardButton("🧐 Help")]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
-        
-        await update.message.reply_text(
-            "🎛️ **Main Menu**\n\nChoose an option:",
-            reply_markup=reply_markup
-        )
-    
-    async def list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /list command"""
         user_id = update.effective_user.id
-        transactions = self.db.get_user_transactions(user_id)
-        
-        if not transactions:
-            await update.message.reply_text("You have no transactions recorded.")
-            return
-        
-        lines = []
-        for amount, currency, message, category_name, timestamp in transactions:
-            # Format timestamp as DD-MM-YYYY HH:MM:SS
-            formatted_timestamp = timestamp.strftime("%d-%m-%Y %H:%M:%S") if timestamp else "N/A"
-            line = f"{amount} {currency} ({formatted_timestamp})"
-            if message:
-                line += f" — {message}"
-            if category_name:
-                line += f" [Category: {category_name}]"
-            lines.append(line)
-        
-        await update.message.reply_text("Your transactions:\n" + "\n".join(lines))
+        currency = self.db.get_user_currency(user_id)
+        await update.message.reply_text(Config.HELP_TEXT.format(currency=currency))
     
     async def summarize_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /summarize command"""
@@ -194,7 +165,9 @@ class BotHandlers:
             )
         
         elif button_text == "🧐 Help":
-            await update.message.reply_text(Config.HELP_TEXT)
+            user_id = update.effective_user.id
+            currency = self.db.get_user_currency(user_id)
+            await update.message.reply_text(Config.HELP_TEXT.format(currency=currency))
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle callback queries"""
@@ -244,7 +217,7 @@ class BotHandlers:
         )
         
         await query.edit_message_text(
-            f"All is good. Transaction {transaction['amount']} {transaction['currency']} is written under category: {category_name}."
+            f"✅ Transaction {transaction['amount']} {transaction['currency']} is written under category: {category_name}."
         )
     
     async def handle_currency_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -269,17 +242,19 @@ class BotHandlers:
             f"✅ Perfect! Your default currency is set to **{currency}**."
         )
         
-        # Then send a new message with the persistent keyboard
+        # Then send welcome image with the persistent keyboard
         keyboard = [
             [KeyboardButton("🤌 Summarize"), KeyboardButton("🧐 Help")]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
-        
-        await context.bot.send_message(
-            chat_id=query.from_user.id,
-            text=Config.WELCOME_TEXT.format(currency=currency),
-            reply_markup=reply_markup
-        )
+
+        with open('images/welcome.png', 'rb') as photo:
+            await context.bot.send_photo(
+                chat_id=query.from_user.id,
+                photo=photo,
+                caption="👋 Welcome to your personal spending tracker!",
+                reply_markup=reply_markup
+            )
     
     async def handle_summarize_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle summarize callback"""

@@ -6,7 +6,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the app directory contents to /app (includes flyway.conf)
+# Copy the app directory contents to /app (includes images and flyway.conf)
 COPY app/ .
 
 # Copy migrations directory
