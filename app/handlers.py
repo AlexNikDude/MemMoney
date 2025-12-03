@@ -92,18 +92,19 @@ class BotHandlers:
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle text messages"""
         message = update.message.text.strip()
-        
+
         # Handle keyboard button presses
         if message in ["🤌 Summarize", "🧐 Help"]:
             await self.handle_keyboard_button(update, context, message)
             return
-        
+
         # Handle transaction input - two patterns:
-        # 1. Number + currency code (e.g., "100 USD groceries")
-        # 2. Just number (e.g., "100 groceries") - uses default currency
-        match_with_currency = re.match(r'^(\d+(?:\.\d{1,2})?)\s*([A-Za-z]{3})\b(.*)$', message)
-        match_just_number = re.match(r'^(\d+(?:\.\d{1,2})?)\s*(.*)$', message)
-        
+        # 1. Number + currency code (e.g., "100 USD groceries" or "20,5 EUR coffee")
+        # 2. Just number (e.g., "100 groceries" or "20,5 coffee") - uses default currency
+        # Allow both dot and comma as decimal separators
+        match_with_currency = re.match(r'^(\d+(?:[.,]\d{1,2})?)\s*([A-Za-z]{3})\b(.*)$', message)
+        match_just_number = re.match(r'^(\d+(?:[.,]\d{1,2})?)\s*(.*)$', message)
+
         if match_with_currency:
             await self.handle_transaction_input(update, context, match_with_currency, has_currency=True)
         elif match_just_number:
@@ -114,7 +115,7 @@ class BotHandlers:
     async def handle_transaction_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE, match, has_currency: bool) -> None:
         """Handle transaction input and show category selection"""
         user_id = update.effective_user.id
-        
+
         if has_currency:
             # Pattern: number + currency + message
             amount, currency, message_without_amount_currency = match.groups()
@@ -123,20 +124,23 @@ class BotHandlers:
             # Pattern: number + message (use default currency)
             amount, message_without_amount_currency = match.groups()
             currency = self.db.get_user_currency(user_id)
-        
+
+        # Normalize comma to dot in amount (e.g., "20,5" -> "20.5")
+        amount = amount.replace(',', '.')
+
         # Get categories for the user
         categories = self.db.get_user_categories(user_id)
         if not categories:
             await update.message.reply_text("No categories found. Please use /start to initialize your categories.")
             return
-        
+
         # Store pending transaction
         self.pending_transactions[user_id] = {
             'amount': amount,
             'currency': currency.upper(),
             'message': message_without_amount_currency.strip()
         }
-        
+
         # Show categories as buttons
         keyboard = [
             [InlineKeyboardButton(cat_name, callback_data=f"cat_{cat_id}")]
